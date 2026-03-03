@@ -1,6 +1,6 @@
 # Potential Talents – Adaptive Candidate Ranking System
 
-##  Problem Statement
+## Problem Statement
 
 As a talent sourcing and management company, we aim to automate the ranking of candidates for specific roles using limited profile information:
 
@@ -22,19 +22,21 @@ Therefore, this is approached as a **ranking + adaptive relevance feedback probl
 
 ---
 
-#  System Architecture Overview
+## System Architecture Overview
 
-The system consists of three layers:
+The system consists of three logical layers:
 
 1. **Deterministic Baseline Ranking**
-2. **Adaptive Re-ranking via Similarity Feedback**
+2. **Adaptive Re-Ranking via Similarity Feedback**
 3. **Soft Filtering with Dynamic Cutoff**
+
+The implementation is modular and production-aligned via a `src/` package and Docker container.
 
 ---
 
-# 1 Baseline Deterministic Ranking
+### 1 Baseline Deterministic Ranking
 
-## Feature Signals
+#### Feature Signals
 
 Based on EDA, we construct structured signals from `job_title`:
 
@@ -50,12 +52,12 @@ semantic_score = 0.6 * HR
                + 0.05 * Intent
 ```
 
-### Minimal Additional Signals
+#### Minimal Additional Signals
 
 To preserve realism while minimizing bias:
 
-* Connections are normalized and weighted lightly
-* Location is optionally matched and weighted minimally
+* Connections are normalized and lightly weighted
+* Location matching is optionally applied and minimally weighted
 
 Final baseline score:
 
@@ -70,14 +72,20 @@ Then:
 * Duplicate job title penalty applied
 * Final baseline normalized to [0,1]
 
-### Why minimal weighting?
+#### Why Minimal Weighting?
 
 Connections and location can correlate with privilege, geography, or seniority bias.
-Therefore, they are included only as tie-breakers, not primary ranking signals.
+
+They are included only as tie-breakers — not primary ranking signals — to reduce systemic bias risk.
 
 ---
 
-# 2 Adaptive Re-Ranking via Similarity Feedback
+### 2 Adaptive Re-Ranking via Similarity Feedback
+
+Ranking and re-ranking are separated:
+
+* **Ranking** happens once per query.
+* **Re-ranking** happens each time a candidate is starred.
 
 When a candidate is starred:
 
@@ -98,17 +106,17 @@ Where:
 α = 0.4
 ```
 
-This allows the system to mimic recruiter behavior:
+This enables relevance feedback:
 
-* Star an aspirant → similar aspirants move up
+* Star an aspirant → aspirant profiles rise
 * Star a senior specialist → senior roles dominate
-* Star a director → executive-level roles rise
+* Star a director → executive profiles rise
 
-This implements a classical relevance feedback mechanism.
+The system adapts without retraining.
 
 ---
 
-# Quantitative Behavioral Validation
+#### Quantitative Behavioral Validation
 
 For each starring scenario, we measure:
 
@@ -117,26 +125,24 @@ For each starring scenario, we measure:
 * Average rank movement of similar candidates
 * Average rank movement of dissimilar candidates
 
-## Result
+#### Example Results
 
-| Scenario (id) | Star Rank Before | Star Rank After | Mean Top10 Similarity Before | Mean After | Similar Candidates Movement| Disimilar Candidates Movement |
-| -------- | ---------------- | --------------- | ---------------------------- | ---------- | ----- | ------ |
-| Starred Director HR | 19 | 1 | 0.1233 | 0.2375 | 8.7 | -0.93 |
-| Starred Senior HR | 45 | 5 | 0.1233 | 0.6823 | -1.6 | 0.17 |
-| Starred Aspiring HR Professional (3) | 70 | 8 | 0.1233 | 0.7621 | 41.7 | -4.44 |
-| Non HR (80) | 87 | 40 | 0.1233 | 0.0 | -0.7 | 0.7 |
+| Scenario    | Star Rank Before | Star Rank After | Mean Top10 Similarity Before | Mean After | Similar Movement | Dissimilar Movement |
+| ----------- | ---------------- | --------------- | ---------------------------- | ---------- | ---------------- | ------------------- |
+| Director HR | 19               | 1               | 0.1233                       | 0.2375     | 8.7              | -0.93               |
+| Senior HR   | 45               | 5               | 0.1233                       | 0.6823     | -1.6             | 0.17                |
+| Aspiring HR | 70               | 8               | 0.1233                       | 0.7621     | 41.7             | -4.44               |
+| Non-HR      | 87               | 40              | 0.1233                       | 0.0        | -0.7             | 0.7                 |
 
-This confirms measurable improvement in semantic alignment.
-
-The system does not just change ranking — it increases semantic coherence.
+This confirms measurable improvement in semantic alignment and adaptive behavior.
 
 ---
 
-# Soft Filtering Strategy
+### 3 Soft Filtering Strategy
 
 We do **not** hard-remove candidates.
 
-Instead, we apply soft filtering after adaptive ranking.
+Filtering occurs **after adaptive re-ranking**.
 
 A candidate is filtered out only if:
 
@@ -152,14 +158,14 @@ similarity < 0.10
 This ensures:
 
 * Clearly irrelevant profiles are removed
-* Borderline candidates can survive if semantically similar
+* Borderline candidates can survive if semantically aligned
 * No premature elimination occurs
 
 ---
 
-# Why Percentile-Based Cutoff?
+## Why Percentile-Based Cutoff?
 
-Absolute thresholds (e.g., score > 0.6) do not generalize across roles.
+Absolute score thresholds (e.g., score > 0.6) do not generalize across roles.
 
 Score distributions vary by:
 
@@ -172,47 +178,46 @@ Using percentiles ensures:
 * Distribution awareness
 * Role-agnostic behavior
 * Stable shortlist sizes
-* No reliance on arbitrary score assumptions
+* No arbitrary thresholds
 
 ---
 
-# Exploratory Data Analysis Summary
+## Exploratory Data Analysis Summary
 
 * 104 candidates
 * 77 HR-related profiles
 * 20 senior profiles
 * 54 entry-level / aspirational profiles
 * Significant duplicate job titles
-* No labeled `fit`
+* No labeled `fit` values
 
 Conclusion:
 
-This is a ranking-within-domain problem, not classification.
-
-Supervised learning was intentionally avoided due to lack of ground truth.
+This is a ranking-within-domain problem.
+Supervised learning was intentionally avoided.
 
 ---
 
-# Bias Mitigation Strategy
+## Bias Mitigation Strategy
 
 To reduce systemic bias:
 
-* Location is minimally weighted
-* Connections are minimally weighted
-* No hard filtering by domain
-* Adaptive learning shifts control to recruiter behavior
+* Location minimally weighted
+* Connections minimally weighted
+* No hard domain exclusion
+* Recruiter starring drives adaptation
 * Duplicate penalty prevents monoculture dominance
 
-Future improvements:
+Future enhancements:
 
 * Blind ranking mode
 * Multi-star consensus weighting
-* Embedding-based semantic models
-* Fairness auditing if demographic data becomes available
+* Embedding-based semantic similarity
+* Fairness auditing if demographic signals become available
 
 ---
 
-# Repository Structure
+## Repository Structure
 
 ```
 .
@@ -220,38 +225,68 @@ Future improvements:
 │   ├── 01_eda.ipynb
 │   ├── 02_base_model.ipynb
 │
-├── src/                (planned)
-│   ├── ranker.py
+├── src/
+│   ├── __init__.py
+│   ├── main.py
+│   ├── data_loader.py
+│   ├── scoring.py
 │   ├── adaptive.py
-│   ├── filter.py
+│   ├── filtering.py
+│   ├── pipeline.py
 │
-├── Dockerfile          (planned)
+├── Dockerfile
 ├── requirements.txt
 └── README.md
 ```
 
 ---
 
-# Reproducibility Plan
+## Running with Docker
 
-The project will be containerized using Docker to ensure:
+### Build Image
 
-* Deterministic ranking pipeline
-* Clean dependency management
-* Environment consistency
+```
+docker build -t candidate-ranker .
+```
+
+### Run Ranking
+
+```
+docker run \
+  -v $(pwd)/data:/data \
+  candidate-ranker \
+  --data /data/potential-talents.csv \
+  --output /data/baseline.csv
+```
+
+### Run Re-Ranking (with Star)
+
+```
+docker run \
+  -v $(pwd)/data:/data \
+  candidate-ranker \
+  --data /data/potential-talents.csv \
+  --star_id 89 \
+  --output /data/reranked_89.csv
+```
+
+Internally, this runs:
+
+```
+python -m src.main
+```
+
+---
+
+## Reproducibility
+
+* Fully containerized pipeline
+* Deterministic ranking
+* Modular architecture
+* No notebook dependency for execution
 
 Note:
-
 The dataset cannot be publicly shared due to company restrictions.
 Users must mount the dataset locally when running the container.
-
-
-# Status
-
-✔ Exploratory phase complete
-✔ Baseline ranking implemented
-✔ Adaptive re-ranking validated
-✔ Soft filtering added
-➡ Transitioning to modular `src/` implementation
 
 ---
