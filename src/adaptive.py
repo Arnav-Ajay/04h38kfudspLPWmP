@@ -1,29 +1,5 @@
 # src/adaptive.py
 
-# from sklearn.feature_extraction.text import TfidfVectorizer
-# from sklearn.metrics.pairwise import cosine_similarity
-
-# def rerank_with_similarity(df, star_id, alpha=0.4):
-#     vectorizer = TfidfVectorizer(stop_words="english")
-#     tfidf_matrix = vectorizer.fit_transform(df["job_title_n"])
-
-#     star_index = df.index[df["id"] == star_id][0]
-#     star_vector = tfidf_matrix[star_index]
-
-#     similarity = cosine_similarity(star_vector, tfidf_matrix).flatten()
-
-#     df["similarity_to_star"] = similarity
-#     df["adaptive_score"] = (
-#         (1 - alpha) * df["base_score_adj_norm"]
-#         + alpha * df["similarity_to_star"]
-#     )
-
-#     return df.sort_values("adaptive_score", ascending=False)
-
-
-
-# src/adaptive.py
-
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -65,10 +41,31 @@ def fuse_scores(df, alpha=0.4):
     return df
 
 
-def rerank(df, similarity_engine, star_id, alpha=0.4):
-    """
-    Performs full adaptive reranking.
-    """
-    df = similarity_engine.compute_similarity(df, star_id)
-    df = fuse_scores(df, alpha)
+# def rerank(df, similarity_engine, star_id, alpha=0.4):
+#     """
+#     Performs full adaptive reranking.
+#     """
+#     df = similarity_engine.compute_similarity(df, star_id)
+#     df = fuse_scores(df, alpha)
+#     return df.sort_values("adaptive_score", ascending=False)
+
+def rerank(df, similarity_engine, star_ids, alpha=0.4):
+    df = df.copy()
+
+    all_similarities = []
+
+    for star_id in star_ids:
+        df = similarity_engine.compute_similarity(df, star_id)
+        all_similarities.append(df["similarity_to_star"].values)
+
+    # Mean similarity across stars
+    combined_similarity = sum(all_similarities) / len(all_similarities)
+
+    df["combined_similarity"] = combined_similarity
+
+    df["adaptive_score"] = (
+        (1 - alpha) * df["base_score_adj_norm"]
+        + alpha * df["combined_similarity"]
+    )
+
     return df.sort_values("adaptive_score", ascending=False)

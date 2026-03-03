@@ -11,7 +11,7 @@ As a talent sourcing and management company, we aim to automate the ranking of c
 We want to:
 
 1. Rank candidates by fitness for a given role (e.g., “Aspiring Human Resources”)
-2. Re-rank candidates dynamically when a candidate is starred (selected as ideal)
+2. Re-rank candidates dynamically when one or multiple candidates are starred (cumulative relevance feedback)
 3. Filter out clearly irrelevant candidates
 4. Avoid overfitting or bias
 5. Maintain interpretability
@@ -85,19 +85,28 @@ They are included only as tie-breakers — not primary ranking signals — to re
 Ranking and re-ranking are separated:
 
 * **Ranking** happens once per query.
-* **Re-ranking** happens each time a candidate is starred.
+* **Adaptive re-ranking** happens each time one or more candidates are starred.
+* Stars are cumulative and influence ranking jointly.
 
-When a candidate is starred:
+#### Multi-Star Relevance Feedback
 
-1. Job titles are vectorized using TF-IDF.
-2. Cosine similarity is computed between the starred candidate and all others.
-3. Similarity is fused with the baseline score.
+When one or more candidates are starred:
+* Job titles are vectorized using TF-IDF.
+* Cosine similarity is computed between each starred candidate and all others.
+* Similarities are aggregated.
+* Aggregated similarity is fused with the baseline score.
+
+If multiple stars exist:
+
+```
+combined_similarity = mean(similarity_to_each_star)
+```
 
 Final adaptive score:
 
 ```
 adaptive_score = (1 - α) * baseline_score
-               + α * similarity_to_star
+               + α * combined_similarity
 ```
 
 Where:
@@ -106,17 +115,18 @@ Where:
 α = 0.4
 ```
 
-This enables relevance feedback:
+#### Why Multi-Star?
 
-* Star an aspirant → aspirant profiles rise
-* Star a senior specialist → senior roles dominate
-* Star a director → executive profiles rise
+This enables progressive refinement:
+* Star one aspirant → aspirant profiles rise
+* Star multiple senior specialists → senior roles dominate
+* Star both director + senior → system converges toward executive-level profiles
 
-The system adapts without retraining.
+The ranking becomes more semantically coherent with each starring action, without retraining.
 
 ---
 
-#### Quantitative Behavioral Validation
+### Quantitative Behavioral Validation
 
 For each starring scenario, we measure:
 
@@ -124,6 +134,8 @@ For each starring scenario, we measure:
 * Mean similarity of top 10 candidates before vs after
 * Average rank movement of similar candidates
 * Average rank movement of dissimilar candidates
+
+Validation was performed both for single-star scenarios and to verify that ranking progressively improves when multiple stars are applied cumulatively.
 
 #### Example Results
 
@@ -152,7 +164,7 @@ A candidate is filtered out only if:
 ```
 base_score < 70th_percentile
 AND
-similarity < 0.10
+combined_similarity < 0.10
 ```
 
 This ensures:
@@ -211,7 +223,7 @@ To reduce systemic bias:
 Future enhancements:
 
 * Blind ranking mode
-* Multi-star consensus weighting
+* Multi-star consensus weighting (reduces single-star bias amplification)
 * Embedding-based semantic similarity
 * Fairness auditing if demographic signals become available
 
@@ -259,15 +271,15 @@ docker run \
   --output /data/baseline.csv
 ```
 
-### Run Re-Ranking (with Star)
+### Run Re-Ranking (Single or Multi-Star)
 
 ```
 docker run \
   -v $(pwd)/data:/data \
   candidate-ranker \
   --data /data/potential-talents.csv \
-  --star_id 89 \
-  --output /data/reranked_89.csv
+  --star_ids 89 61 \ # Multiple IDs can be passed. The system aggregates similarity across all starred candidates before re-ranking.
+  --output /data/reranked_multi.csv
 ```
 
 Internally, this runs:

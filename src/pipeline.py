@@ -1,26 +1,4 @@
 # src/pipeline.py
-
-# from .data_loader import load_data
-# from .scoring import compute_semantic_score, compute_baseline
-# from .adaptive import rerank_with_similarity
-# from .filtering import apply_soft_filter
-
-# def run_pipeline(data_path, star_id=None):
-#     df = load_data(data_path)
-#     df = compute_semantic_score(df)
-#     df = compute_baseline(df)
-
-#     if star_id is not None:
-#         df = rerank_with_similarity(df, star_id)
-#         df = apply_soft_filter(df)
-
-#     return df
-
-
-
-
-# src/pipeline.py
-
 from .data_loader import load_data
 from .scoring import compute_semantic_score, compute_baseline
 from .adaptive import SimilarityEngine, rerank
@@ -34,8 +12,14 @@ def rank(data_path):
     return df.sort_values("base_score_adj_norm", ascending=False)
 
 
-def rerank_pipeline(df, star_id):
+# def rerank_pipeline(df, star_id):
+#     similarity_engine = SimilarityEngine(df)
+#     df = rerank(df, similarity_engine, star_id)
+#     df = apply_soft_filter(df)
+#     return df
+
+def rerank_pipeline(df, star_ids):
     similarity_engine = SimilarityEngine(df)
-    df = rerank(df, similarity_engine, star_id)
+    df = rerank(df, similarity_engine, star_ids)
     df = apply_soft_filter(df)
     return df
